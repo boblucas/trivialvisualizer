@@ -104,7 +104,8 @@ void makeFrames(Point globalMin, Point globalMax)
 			else
 				srcRect.w = (srcRect.h * (16.0/9.0));
 
-			SDL_Surface* clipped = SDL_CreateRGBSurface(SDL_SWSURFACE, srcRect.w, srcRect.h, 32, 0xFF0000, 0xFF00, 0xFF, 0);
+			SDL_Surface* clipped = SDL_CreateRGBSurfaceFrom( ((uint8_t*)image->pixels) + (srcRect.y*image->pitch) + srcRect.x*4 , srcRect.w, srcRect.h, 32, image->pitch, 0xFF0000, 0xFF00, 0xFF, 0);
+
 			SDL_BlitSurface(image, &srcRect, clipped, 0);
 			zoomSurfaceRGBA(clipped, frameOut, 0);
 
