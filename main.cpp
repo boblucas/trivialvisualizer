@@ -61,12 +61,11 @@ void makeFrames(Point globalMin, Point globalMax)
 
 	int blocks = 2;
 	if(globalMax.x - globalMin.x > 50000)
-		blocks = 4;
+		blocks = 8;
 
 	SDL_Surface* image = SDL_CreateRGBSurface(SDL_SWSURFACE, (globalMax.x-globalMin.x)/blocks + 2, (globalMax.y-globalMin.y)/blocks + 2, 32, 0xFF0000, 0xFF00, 0xFF, 0);
-	SDL_Surface* frameOut = SDL_CreateRGBSurface(SDL_SWSURFACE, 1920, 1080, 32, 0xFF0000, 0xFF00, 0xFF, 0xFF000000);
-
-
+	SDL_Surface* frameOut = SDL_CreateRGBSurface(SDL_SWSURFACE, 1920, 1080, 32, 0xFF0000, 0xFF00, 0xFF, 0);
+	SDL_FillRect(image, 0, 0xFF000000);
 
 	double nextFrame = 1;
 	int currentStep = 0;
@@ -94,46 +93,39 @@ void makeFrames(Point globalMin, Point globalMax)
 			currentStep = 0;	
 			nextFrame += 0.1;
 
-			SDL_Surface* active = (SDL_Surface *)malloc(sizeof(SDL_Surface));
-			{
-				int w = (max.x - min.x)/blocks + 1;
-				int h = (max.y - min.y)/blocks + 1;
+			SDL_Rect srcRect;
+			srcRect.x = (min.x - globalMin.x)/blocks;
+			srcRect.y = (min.y - globalMin.y)/blocks;
+			srcRect.w = (max.x - min.x)/blocks + 1;
+			srcRect.h = (max.y - min.y)/blocks + 1;
 
-				if(((float)w)/h > 16.0/9.0)
-					h = (w / (16.0/9.0));
-				else
-					w = (h * (16.0/9.0));
+			if(((float)srcRect.w)/srcRect.h > 16.0/9.0)
+				srcRect.h = (srcRect.w / (16.0/9.0));
+			else
+				srcRect.w = (srcRect.h * (16.0/9.0));
 
-				active->flags = SDL_SWSURFACE;
-				//active->format =  new SDL_PixelFormat{32,  0xFF0000, 0xFF00, 0xFF, 0};
-				active->w = w;
-				active->h = h;
-				active->pixels = ((uint32_t*)image->pixels) + image->w * ((min.y - globalMin.y)/blocks) + (min.x - globalMin.x)/blocks;
-				active->pitch = image->w * 4;
-				active->offset = active->hwdata = active->locked = active->map = active->unused1 = 0;
-				SDL_SetClipRect(active, 0);
-				//SDL_FormatChanged(active);
-			}
-			zoomSurfaceRGBA(active, frameOut, active->w > frameOut);
+			SDL_Surface* clipped = SDL_CreateRGBSurface(SDL_SWSURFACE, srcRect.w, srcRect.h, 32, 0xFF0000, 0xFF00, 0xFF, 0);
+			SDL_BlitSurface(image, &srcRect, clipped, 0);
+			zoomSurfaceRGBA(clipped, frameOut, 0);
 
 			std::stringstream ss;
 			ss << "video/frame_" << std::setfill('0') << std::setw(5) << currentFrame << ".png";
 			std::cout << "writing " << ss.str().c_str() << " @ " << prime << std::endl;
-			//SDL_SavePNG_RW(frameOut, SDL_RWFromFile(ss.str().c_str(), "wb"), 1);
+			SDL_SavePNG_RW(frameOut, SDL_RWFromFile(ss.str().c_str(), "wb"), 1);
 
 			currentFrame++;
 		}
 
 		int x = (position.x - globalMin.x)/blocks + 1;
 		int y = (position.y - globalMin.y)/blocks + 1;
-		uint32_t* pixel = ((uint32_t*)image->pixels)[y*(image->pitch/4) + x];
+		uint32_t* pixel = (uint32_t*)(((uint8_t*)image->pixels) + (y*image->pitch) + x*4);
 
 		if( (*pixel & 0xff) < 250)
-			*pixel += 127;
-		else if( ((*pixel >> 8) & 0xff) < 250)
-			*pixel += 127 << 8;
-		else if( ((*pixel >> 16) & 0xff) < 250)
-			*pixel += 127 << 16;
+			*pixel += 50;
+		//else if( ((*pixel >> 8) & 0xff) < 240)
+		//	*pixel += 127 << 8;
+		//else if( ((*pixel >> 16) & 0xff) < 240)
+		//	*pixel += 127 << 16;
 
 		currentStep++;
 	}
