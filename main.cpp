@@ -11,7 +11,7 @@
 //Video resolution
 const int64_t WIDTH = 1920;
 const int64_t HEIGHT = 1080;
-//Bigger canvas size create better looking images
+//Bigger canvas size creates better looking images
 const int64_t MULTI = ((1<<14)-1) / WIDTH;
 const double RATIO = ((float)WIDTH)/((float)HEIGHT);
 
@@ -25,9 +25,33 @@ Point max(const Point& p, const Point& q) { return {p.x > q.x ? p.x : q.x, p.y >
 
 struct ColorRGB
 {
-	uint8_t r;
-	uint8_t g;
 	uint8_t b;
+	uint8_t g;
+	uint8_t r;
+
+	int getLevel()
+	{
+		return b + g + r;
+	}
+
+	void setLevel(int level)
+	{
+		if(level > 255)
+		{
+			b = 255;
+
+			if(level > 255*2)
+			{
+				g = 255;
+				if(level > 255*3)
+					r = 255;
+				else
+					r = level - 255*2;
+			}
+			else g = level-255;
+		}
+		else b = level;
+	}
 };
 
 struct Bitmap
@@ -131,13 +155,12 @@ void letterbox(const Bitmap& src, int x, int y, int w, int h, Bitmap& dst)
 	zoom(softClip(src, x, y, w, h), dst);
 }
 
-Bitmap* remapCanvas(Bitmap& canvas)
+void remapCanvas(Bitmap& canvas)
 {
 	Bitmap buffer(canvas.w/2, canvas.h/2);
 	zoom(canvas, buffer);
-	Bitmap* buffer2 = new Bitmap(canvas.w, canvas.h);
-	blit(buffer, *buffer2, canvas.w/4, canvas.h/4);
-	return buffer2;
+	std::memset(canvas.pixels, 0, canvas.w*canvas.h*sizeof(ColorRGB));
+	blit(buffer, canvas, canvas.w/4, canvas.h/4);
 }
 
 void makeFrames()
@@ -198,14 +221,38 @@ void makeFrames()
 		while(pixel > image.pixels + image.h*image.pitch)
 		{
 			blocks *= 2;
-			image = *remapCanvas(image);
+			std::cout << "blocksize is now " << blocks << std::endl;
+			remapCanvas(image);
 			x = (position.x + (WIDTH *MULTI*blocks/2))/blocks + 1;
 			y = (position.y + (HEIGHT*MULTI*blocks/2))/blocks + 1;
 			pixel = image.pixels + y*image.pitch + x;
 		}
 
-		if( (*pixel).g < 255)
-			(*pixel).g += (255/(blocks-1));
+		if(blocks <= 2)
+		{
+			pixel->setLevel( 200 + pixel->getLevel());
+		}
+		else if(blocks == 4)
+		{
+			pixel->setLevel( 100 + pixel->getLevel());
+		}
+		else if(blocks == 8)
+		{
+			pixel->setLevel( 32 + pixel->getLevel());
+		}
+		else if(blocks == 16)
+		{
+			pixel->setLevel( 8 + pixel->getLevel());
+		}
+		else if(blocks == 32)
+		{
+			pixel->setLevel( 3 + pixel->getLevel());
+		}
+		else
+		{
+			pixel->setLevel( 1 + pixel->getLevel());
+		}
+
 
 		currentStep++;
 	}
