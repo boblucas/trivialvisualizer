@@ -29,45 +29,33 @@ struct ColorRGB
 	uint8_t g;
 	uint8_t r;
 
-	int getLevel()
+	ColorRGB operator=(const uint32_t& rhs)
 	{
-		return b + g + r;
-	}
-
-	void setLevel(int level)
-	{
-		if(level > 255)
-		{
-			b = 255;
-
-			if(level > 255*2)
-			{
-				g = 255;
-				if(level > 255*3)
-					r = 255;
-				else
-					r = level - 255*2;
-			}
-			else g = level-255;
-		}
-		else b = level;
+		int level = rhs / 1000;
+		b = level > 255 ? 255 : level;
+		level -= 255;
+		g = level > 255 ? 255 : (level > 0 ? level : 0);
+		level -= 255;
+		r = level > 255 ? 255 : (level > 0 ? level : 0);
+		return *this;
 	}
 };
 
+template<typename T>
 struct Bitmap
 {
 	unsigned w;
 	unsigned h;
 	unsigned pitch;
-	ColorRGB* pixels;
+	T* pixels;
 	bool soft = false;
 
-	Bitmap(unsigned w, unsigned h, unsigned pitch, ColorRGB* pixels) : w(w), h(h), pitch(pitch), pixels(pixels), soft(true) {}
-	Bitmap(unsigned w, unsigned h) : w(w), h(h), pitch(w), pixels(new ColorRGB[w*h])
+	Bitmap(unsigned w, unsigned h, unsigned pitch, T* pixels) : w(w), h(h), pitch(pitch), pixels(pixels), soft(true) {}
+	Bitmap(unsigned w, unsigned h) : w(w), h(h), pitch(w), pixels(new T[w*h])
 	{
-		std::memset(pixels, 0, w*h*sizeof(ColorRGB));
+		std::memset(pixels, 0, w*h*sizeof(T));
 	}
-	Bitmap(const Bitmap& original) : w(original.w), h(original.h), pitch(original.pitch), pixels(new ColorRGB[w*h])
+	Bitmap(const Bitmap<T>& original) : w(original.w), h(original.h), pitch(original.pitch), pixels(new T[w*h])
 	{
 		std::memcpy(pixels, original.pixels, w*pitch);
 	}
@@ -77,20 +65,23 @@ struct Bitmap
 	}
 };
 
-Bitmap softClip(const Bitmap& bitmap, unsigned x, unsigned y, unsigned w, unsigned h)
+template<typename T>
+Bitmap<T> softClip(const Bitmap<T>& bitmap, unsigned x, unsigned y, unsigned w, unsigned h)
 {
-	return Bitmap(w, h, bitmap.w, bitmap.pixels + y*bitmap.pitch + x);
+	return Bitmap<T>(w, h, bitmap.w, bitmap.pixels + y*bitmap.pitch + x);
 }
-void blit(const Bitmap& source, Bitmap& destination, unsigned destX, unsigned destY)
+template<typename T>
+void blit(const Bitmap<T>& source, Bitmap<T>& destination, unsigned destX, unsigned destY)
 {
 	for(unsigned y = 0; y < source.h; ++y)
-		std::memcpy(destination.pixels + (y+destY)*destination.w + destX, source.pixels + y*source.pitch, source.w*sizeof(ColorRGB));
+		std::memcpy(destination.pixels + (y+destY)*destination.w + destX, source.pixels + y*source.pitch, source.w*sizeof(T));
 }
 
-void saveBMP(const Bitmap& image, const char* filename);
+void saveBMP(const Bitmap<ColorRGB>& image, const char* filename);
 
 //Stolen and modified from SDL_rotozoom
-void zoom(const Bitmap& src, Bitmap& dst)
+template<typename T, typename U>
+void zoom(const Bitmap<T>& src, Bitmap<U>& dst)
 {
 	int sx = (int)(1048576.0 * (float)src.w / (float)dst.w);
 	int sy = (int)(1048576.0 * (float)src.h / (float)dst.h);
@@ -114,9 +105,9 @@ void zoom(const Bitmap& src, Bitmap& dst)
 		csy += sy;
 	}
 
-	ColorRGB* sp  = src.pixels;
-	ColorRGB* csp = src.pixels;
-	ColorRGB* dp  = dst.pixels;
+	T* sp  = src.pixels;
+	T* csp = src.pixels;
+	U* dp  = dst.pixels;
 
 	csay = say;
 	for (unsigned y = 0; y < dst.h; y++)
@@ -137,7 +128,8 @@ void zoom(const Bitmap& src, Bitmap& dst)
 	delete[] say;
 }
 
-void letterbox(const Bitmap& src, int x, int y, int w, int h, Bitmap& dst)
+template<typename T, typename U>
+void letterbox(const Bitmap<T>& src, int x, int y, int w, int h, Bitmap<U>& dst)
 {
 	if(((float)w)/h > RATIO)
 	{
@@ -152,15 +144,15 @@ void letterbox(const Bitmap& src, int x, int y, int w, int h, Bitmap& dst)
 		x -= diff/2;
 	}
 
-	zoom(softClip(src, x, y, w, h), dst);
+	zoom<>(softClip<>(src, x, y, w, h), dst);
 }
 
-void remapCanvas(Bitmap& canvas)
+void remapCanvas(Bitmap<uint32_t>& canvas)
 {
-	Bitmap buffer(canvas.w/2, canvas.h/2);
-	zoom(canvas, buffer);
-	std::memset(canvas.pixels, 0, canvas.w*canvas.h*sizeof(ColorRGB));
-	blit(buffer, canvas, canvas.w/4, canvas.h/4);
+	Bitmap<uint32_t> buffer(canvas.w/2, canvas.h/2);
+	zoom<>(canvas, buffer);
+	std::memset(canvas.pixels, 0, canvas.w*canvas.h*sizeof(uint32_t));
+	blit<>(buffer, canvas, canvas.w/4, canvas.h/4);
 }
 
 void makeFrames()
@@ -175,8 +167,8 @@ void makeFrames()
 	int64_t blocks = 2;
 	int64_t direction = 0;
 
-	Bitmap image = Bitmap(WIDTH*MULTI, HEIGHT*MULTI);
-	Bitmap frameOut = Bitmap(WIDTH, HEIGHT);
+	Bitmap<uint32_t> image = Bitmap<uint32_t>(WIDTH*MULTI, HEIGHT*MULTI);
+	Bitmap<ColorRGB> frameOut = Bitmap<ColorRGB>(WIDTH, HEIGHT);
 
 	double nextFrame = 1;
 	uint64_t currentStep = 0;
@@ -204,7 +196,7 @@ void makeFrames()
 				int64_t y = (topLeft.y + (HEIGHT*MULTI*blocks/2))/blocks - 10;
 				int64_t w = (bottomRight.x - topLeft.x)/blocks + 20;
 				int64_t h = (bottomRight.y - topLeft.y)/blocks + 20;
-				letterbox(image, x, y, w, h, frameOut);
+				letterbox<>(image, x, y, w, h, frameOut);
 			}
 
 			std::stringstream ss;
@@ -217,7 +209,7 @@ void makeFrames()
 
 		int64_t x = (position.x + (WIDTH *MULTI*blocks/2) )/blocks + 1;
 		int64_t y = (position.y + (HEIGHT*MULTI*blocks/2) )/blocks + 1;
-		ColorRGB* pixel = image.pixels + y*image.pitch + x;
+		uint32_t* pixel = image.pixels + y*image.pitch + x;
 		while(pixel > image.pixels + image.h*image.pitch)
 		{
 			blocks *= 2;
@@ -228,31 +220,15 @@ void makeFrames()
 			pixel = image.pixels + y*image.pitch + x;
 		}
 
-		if(blocks <= 2)
-		{
-			pixel->setLevel( 200 + pixel->getLevel());
-		}
-		else if(blocks == 4)
-		{
-			pixel->setLevel( 100 + pixel->getLevel());
-		}
-		else if(blocks == 8)
-		{
-			pixel->setLevel( 32 + pixel->getLevel());
-		}
-		else if(blocks == 16)
-		{
-			pixel->setLevel( 8 + pixel->getLevel());
-		}
-		else if(blocks == 32)
-		{
-			pixel->setLevel( 3 + pixel->getLevel());
-		}
-		else
-		{
-			pixel->setLevel( 1 + pixel->getLevel());
-		}
-
+		if     (blocks <=  2) *pixel += 200000;
+		else if(blocks ==  4) *pixel += 100000;
+		else if(blocks ==  8) *pixel += 32000;	
+		else if(blocks == 16) *pixel += 8000;
+		else if(blocks == 32) *pixel += 3000;
+		else if(blocks == 64) *pixel += 1000;
+		else if(blocks ==128) *pixel += 400;
+		else if(blocks ==256) *pixel += 200;
+		else                  *pixel += 100;
 
 		currentStep++;
 	}
@@ -278,7 +254,7 @@ struct BMPHeader
     BMPHeader(int width, int height) : filesize(sizeof(BMPHeader) + width*height*3), width(width), height(height){}
 } __attribute__((packed));
 
-void saveBMP(const Bitmap& image, const char* filename)
+void saveBMP(const Bitmap<ColorRGB>& image, const char* filename)
 {
     FILE* file = fopen(filename, "wb");
     BMPHeader header = BMPHeader(image.w, image.h);
