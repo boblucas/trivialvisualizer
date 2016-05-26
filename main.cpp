@@ -173,6 +173,7 @@ void makeFrames()
 	double nextFrame = 1;
 	uint64_t currentStep = 0;
 	uint64_t currentFrame = 0;
+	double illuminationFactor = 1.5;
 	
 	for (std::string line; std::getline(std::cin, line);)
 	{
@@ -213,6 +214,8 @@ void makeFrames()
 		while(pixel > image.pixels + image.h*image.pitch)
 		{
 			blocks *= 2;
+			illuminationFactor = (1.0/((double)blocks*blocks)) * log(currentStep);
+
 			std::cout << "blocksize is now " << blocks << std::endl;
 			remapCanvas(image);
 			x = (position.x + (WIDTH *MULTI*blocks/2))/blocks + 1;
@@ -220,16 +223,7 @@ void makeFrames()
 			pixel = image.pixels + y*image.pitch + x;
 		}
 
-		if     (blocks <=  2) *pixel += 200000;
-		else if(blocks ==  4) *pixel += 100000;
-		else if(blocks ==  8) *pixel += 32000;	
-		else if(blocks == 16) *pixel += 8000;
-		else if(blocks == 32) *pixel += 3000;
-		else if(blocks == 64) *pixel += 1000;
-		else if(blocks ==128) *pixel += 400;
-		else if(blocks ==256) *pixel += 200;
-		else                  *pixel += 100;
-
+		*pixel += ceil(illuminationFactor * 200000);
 		currentStep++;
 	}
 
