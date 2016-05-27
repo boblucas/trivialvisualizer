@@ -1,3 +1,9 @@
+/*
+	Reads numbers from stdin and uses visualises them by
+	1: moving in the current direction by the value of the number
+	2: marking the current position
+	3: turning 90°
+*/
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -14,6 +20,12 @@ const int64_t HEIGHT = 1080;
 //Bigger canvas size creates better looking images
 const int64_t MULTI = ((1<<14)-1) / WIDTH;
 const double RATIO = ((float)WIDTH)/((float)HEIGHT);
+//How many "steps" does it take to move one pixel, making this number bigger creates a denser image, prefer powers of 2
+const int64_t START_BLOCK_SIZE = 1;
+
+//The step number at which a frame  is rendered is computed as such: a(0) = 0, a(frame) = (a(frame-1) + C) * M
+const double SPEED_INCREASE_C = 0.05;
+const double SPEED_INCREASE_M = 1.01;
 
 struct Point
 {
@@ -161,10 +173,10 @@ void makeFrames()
 	Point bottomRight = {0,0};
 	Point position = {0, 0};
 	
-	uint64_t prime = 0;
-	uint64_t previous = 0;
+	int64_t n = 0;
+	int64_t prevn = 0;
 	
-	int64_t blocks = 2;
+	int64_t blocks = START_BLOCK_SIZE;
 	int64_t direction = 0;
 
 	Bitmap<uint32_t> image = Bitmap<uint32_t>(WIDTH*MULTI, HEIGHT*MULTI);
@@ -177,10 +189,10 @@ void makeFrames()
 	
 	for (std::string line; std::getline(std::cin, line);)
 	{
-		prime = std::atoll(line.c_str());
-		position.x += (~direction & 1) * -(direction-1) * (prime - previous);
-		position.y += ( direction & 1) * -(direction-2) * (prime - previous);
-		previous = prime;
+		n = std::atoll(line.c_str());
+		position.x += (~direction & 1) * -(direction-1) * (n - prevn);
+		position.y += ( direction & 1) * -(direction-2) * (n - prevn);
+		prevn = n;
 		++direction &= 3;
 
 		topLeft = min(position, topLeft);
@@ -189,8 +201,8 @@ void makeFrames()
 		if(currentStep >= nextFrame)
 		{
 			currentStep = 0;
-			nextFrame += 0.05;
-			nextFrame *= 1.01;
+			nextFrame += SPEED_INCREASE_C;
+			nextFrame *= SPEED_INCREASE_M;
 
 			{
 				int64_t x = (topLeft.x + (WIDTH *MULTI*blocks/2))/blocks - 10;
@@ -203,7 +215,7 @@ void makeFrames()
 			std::stringstream ss;
 			ss << "video/frame_" << std::setfill('0') << std::setw(5) << currentFrame << ".bmp";
 			saveBMP(frameOut, ss.str().c_str());
-			std::cout << "wrote " << ss.str().c_str() << " @ " << prime << std::endl;
+			std::cout << "wrote " << ss.str().c_str() << " @ " << n << std::endl;
 
 			currentFrame++;
 		}
@@ -223,7 +235,7 @@ void makeFrames()
 			pixel = image.pixels + y*image.pitch + x;
 		}
 
-		*pixel += ceil(illuminationFactor * 200000);
+		*pixel += ceil(illuminationFactor * 250000);
 		currentStep++;
 	}
 
